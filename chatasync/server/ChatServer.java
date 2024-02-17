@@ -27,7 +27,7 @@ public class ChatServer {
                 ChatServerHandler csh = new ChatServerHandler(socket, cp);
                 cp.addConnects(csh); // add ChatSererHandler into connection pool
                 Thread th = new Thread(csh);
-                th.start();
+                this.start();
             }
 
         } catch (IOException e) {
