@@ -5,6 +5,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 import shared.Message;
@@ -73,12 +74,19 @@ public class ChatClient {
     }
 
     private String getUserMessage() {
+        String messageBody = null; // Instantiate the return value
         System.out.println("Please input >");
-        String message = this.scanner.nextLine();
-        if (message.equalsIgnoreCase("exit")) {
+        try {
+            messageBody = this.scanner.nextLine();
+            if (messageBody.equalsIgnoreCase("exit")) {
+                this.exitFlag = true;
+            }
+        } catch (NoSuchElementException e) {
+            // This might be thrown by `this.scanner.nextLine()` if the client 
+            // exits with CTRL-C. In such case exit and return null.
             this.exitFlag = true;
         }
-        return message;
+        return messageBody;
     }
 
     private void sendUserMessage(String messageString) {
@@ -92,10 +100,11 @@ public class ChatClient {
     }
 
     private void handleUserInput() {
-        // Scanner messageScanner = new Scanner(System.in);
         while(!this.exitFlag) {
             String messageString = this.getUserMessage();
-            this.sendUserMessage(messageString);
+            if (messageString != null) { 
+                this.sendUserMessage(messageString);
+            }
         }
     }
 
@@ -113,21 +122,22 @@ public class ChatClient {
     }
 
     private void listenToServer() {
-        try {
-            // keep reading from server and print out.
-            while (!this.exitFlag){
-                try {
-                    Message inMessage =
-                        (Message) this.streamFromServer.readObject();
-                    System.out.println(inMessage.toString());
-                } catch (ClassNotFoundException e) {
-                    System.err.println("Could not deserialise the message.");
+        // keep reading from server and print out.
+        while (!this.listenerThread.isInterrupted()){
+            try {
+                Message inMessage =
+                    (Message) this.streamFromServer.readObject();
+                System.out.println(inMessage.toString());
+            } catch (ClassNotFoundException e) {
+                System.err.println("Could not deserialise the message.");
+            } catch (IOException e) {
+                if(!this.exitFlag) {
+                    // If the program is not exited continue listening
+                    System.err.println("Failed while listening to server.");
+                } else {
+                    // Otherwise, stop listening
+                    break;
                 }
-            }            
-        } catch (IOException e) {
-            if(!this.exitFlag) {
-                System.err.println("Failed while listening to the server.");
-                this.exitFlag = true;
             }
         }
     }

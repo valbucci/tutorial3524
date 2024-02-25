@@ -16,10 +16,14 @@ public class ConnectionPool {
     // broadcast messages
     public void broadcast(Message message) {
         for (ChatServerHandler handler: this.connections){
-            if (!handler.getClientName().equals(message.getUser())) {
+            String clientName = handler.getClientName();
+            if (clientName == null) { 
+                // The client has not registered yet; skip
+                continue;
+            } else if (!clientName.equals(message.getUser())) {
                 System.out.println("Relaying to " + handler.getClientName());
                 handler.sendMessageToClient(message);
-            }            
+            }
         }
     }
 
