@@ -6,34 +6,72 @@ import java.net.Socket;
 
 public class ChatServer {
 
-    public void start() {
+    private int port;
+    private ServerSocket serverSocket;
+    private ConnectionPool connectionPool;
+
+    public ChatServer(int port) {
+        this.port = port;
+        this.serverSocket = null;
+        this.connectionPool = null;
+    }
+
+    private void setup() throws IOException {
+        System.out.println("ChatServer starting...");
+        this.serverSocket = new ServerSocket(this.port);
+        // make a connection pool for all the connecting clients.
+        this.connectionPool = new ConnectionPool();
+        System.out.println("Setup complete!");
+        
+    }
+
+    private ChatServerHandler awaitClientConnection() {
+        System.out.println("Waiting for new client connection...");
         try {
-            // implement a server socket which waits for request to come in over the network.
-            // This creates a server socket bounded to the specified port.
-            ServerSocket server_socket = new ServerSocket(50000);
+            Socket socket = this.serverSocket.accept();
+            System.out.println("New client connected.");
 
-            // make a connection pool for all the comming clients;
-            // this makes sure there is a pool instance for this port
-            ConnectionPool cp = new ConnectionPool();
-
-            System.out.println("Server started ...");
-
-            // the serve must be able to accept request all the time
-            while (true){
-                // listens for a connection to be made to this socket and accepts it.
-                Socket socket = server_socket.accept();
-
-                // create server_socket_handler and start it.
-                ChatServerHandler csh = new ChatServerHandler(socket, cp);
-                cp.addConnects(csh); // add ChatSererHandler into connection pool
-                Thread th = new Thread(csh);
-                this.start();
-            }
+            // create server_socket_handler and start it.
+            ChatServerHandler handler = new ChatServerHandler(
+                socket,
+                this.connectionPool
+            );
+            this.connectionPool.addConnection(handler);
+            return handler;
 
         } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } 
+            // e.printStackTrace();
+            System.err.println("Could not establish connection with client.");
+            return null;
+        }
+    }
+
+    private void start() {
+        while (true){
+            ChatServerHandler handler = this.awaitClientConnection();
+            if (handler != null) {
+                // Start chat listener thread 
+                Thread chatThread = new Thread(handler);
+                chatThread.start();
+            } else {
+                // If a client failed connecting stop the server.
+                // You could also do nothing here and just continue listening
+                // for new connections.
+                break;
+            }
+        }
+    }
+
+    public void run() {
+        try {
+            this.setup();
+        } catch (IOException e) {
+            // If setup failed, stop here
+            System.err.println("Setup failed; aborting...");
+            return;
+        }
+        this.start();
+        System.out.println("Server stopped.");
     }
 
 }

@@ -6,23 +6,25 @@ import java.util.List;
 import shared.Message;
 
 public class ConnectionPool {
-    private List<ChatServerHandler> connects = new ArrayList<>();
+    private List<ChatServerHandler> connections = new ArrayList<>();
 
     // add ChatServerHandler into a list
-    public void addConnects(ChatServerHandler csh){
-        connects.add(csh);
+    public void addConnection(ChatServerHandler handler){
+        connections.add(handler);
     }
 
     // broadcast messages
-    public void broadcast(Message msg) {
-        for (ChatServerHandler cnn:connects){
-            if (!cnn.getClientName().equals(msg.getUser())){
-                cnn.sendMessageToClients(msg);
+    public void broadcast(Message message) {
+        for (ChatServerHandler handler: this.connections){
+            if (!handler.getClientName().equals(message.getUser())) {
+                System.out.println("Relaying to " + handler.getClientName());
+                handler.sendMessageToClient(message);
             }            
         }
     }
 
-    public void removeUser(ChatServerHandler csh) {
-        connects.remove(csh); // remove a chatserverhandler
+    public void removeUser(ChatServerHandler handler) {
+        // remove the user's connection handler from pool
+        connections.remove(handler);
     }
 }

@@ -10,64 +10,98 @@ import shared.Message;
 public class ChatServerHandler implements Runnable{
 
     private Socket socket;
-    private ObjectInputStream inStream;
-    private ObjectOutputStream outStream;
-    private ConnectionPool pool; // for broadcast message
-    private String user_name;
+    private ObjectInputStream streamFromClient;
+    private ObjectOutputStream streamToClient;
+    private ConnectionPool connectionPool; // for broadcast message
+    private String username;
 
     public ChatServerHandler(Socket socket, ConnectionPool pool){
         this.socket = socket;
-        this.pool = pool;
+        this.connectionPool = pool;
 
         try {
-            this.inStream = new ObjectInputStream(socket.getInputStream());
-            this.outStream = new ObjectOutputStream(socket.getOutputStream());
+            this.streamFromClient = new ObjectInputStream(
+                socket.getInputStream()
+            );
+            this.streamToClient = new ObjectOutputStream(
+                socket.getOutputStream()
+            );
         } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            System.err.println("Failed setting up I/O streams");
         }        
     }
+
+
+    private void registerUser() throws IOException, ClassNotFoundException {
+        try {
+            this.username = (String) this.streamFromClient.readObject();
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Failed registering user " + this.username);
+            // Let the run() function handle this error
+            throw e;
+        }
+        this.connectionPool.broadcast(
+            this.getUserMessage("joined the chat!")
+        );
+    }
+
 
     @Override
     public void run() {
         // run Thread
         try {
-            // now firstly read in the user name
-            this.user_name = (String) inStream.readObject();
+            this.registerUser();
 
             while (true) {
                 // pass message data into Message 
-                Message message = (Message) inStream.readObject();
-                String msg_boday = message.getMessageBody();
-                this.user_name = message.getUser();
+                Message message = (Message) streamFromClient.readObject();
+                String messageBody = message.getMessageBody();
+                // Overwrite this.username with the one contained in the message
+                this.username = message.getUser();
                 System.out.println(message.toString());
 
-                if (msg_boday.equalsIgnoreCase("exit")) {
-                    // this user should be removed from the list
-                    pool.removeUser(this);
-                    socket.close();
-                    break;
-                }               
-                // make the broadcast here
-                pool.broadcast(message); // the message now is sent out to all clients.
-                // 
+                if (messageBody.equalsIgnoreCase("exit")) break;
+                // send message to all other clients
+                connectionPool.broadcast(message);
             }
-        } catch (Exception e) {
-            // TODO: handle exception
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Abruptly interrupted communication with `" 
+                                + this.username + "`.");
+        } finally {
+            this.close();
+        }
+    }
+
+    private Message getUserMessage(String messageBody) {
+        return new Message(messageBody, this.username);
+    }
+
+    private void close() {
+        // remove user from the global connection pool
+        this.connectionPool.removeUser(this);
+        try {
+            this.socket.close();
+        } catch (IOException | NullPointerException e) {
+            // There was an I/O exception or the socket was not instantiated
+            // In either case, do nothing.
+        } finally {
+            this.connectionPool.broadcast(
+                this.getUserMessage("just left the chat.")
+            );
         }
     }
     
-    public void sendMessageToClients(Message msg){
-        // output message object
+    public void sendMessageToClient(Message msg){
         try {
-            outStream.writeObject(msg);
+            // output message object
+            streamToClient.writeObject(msg);
         } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            System.err.println("Failed sending message `" + msg.getMessageBody()
+                               + "` to `" + this.username + "`.");
         }
     }
 
     public String getClientName() {
-        return this.user_name;
+        return this.username;
     }
 }
