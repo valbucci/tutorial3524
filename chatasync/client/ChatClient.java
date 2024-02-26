@@ -116,8 +116,8 @@ public class ChatClient {
     }
 
     private void start() {
-        this.startListenerThread();
         this.registerUser();
+        this.startListenerThread();
         this.handleUserInput();
     }
 
@@ -128,6 +128,14 @@ public class ChatClient {
                 Message inMessage =
                     (Message) this.streamFromServer.readObject();
                 System.out.println(inMessage.toString());
+            } catch (NullPointerException e) {
+                /* 
+                this.streamFromServer was not initialised. Either:
+                (a) something went wrong during setup, or
+                (b) this.close() was called.
+                In both cases we expect this.exitFlag = true.
+                */
+                if(this.exitFlag) break;
             } catch (ClassNotFoundException e) {
                 System.err.println("Could not deserialise the message.");
             } catch (IOException e) {
@@ -151,8 +159,8 @@ public class ChatClient {
     private void close() {
         System.out.println("Exiting...");
         try {
-            this.scanner.close();
             this.listenerThread.interrupt();
+            this.scanner.close();
             this.socket.close();
         } catch (NullPointerException e) {
             // The setup failed, nothing to do here
