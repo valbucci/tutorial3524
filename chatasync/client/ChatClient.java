@@ -121,31 +121,34 @@ public class ChatClient {
         this.handleUserInput();
     }
 
+    private void receiveMessageAndPrint() throws IOException {
+        try {
+            Message inMessage = (Message) this.streamFromServer.readObject();
+            System.out.println(inMessage.toString());
+        } catch (NullPointerException e) {
+            /* 
+            this.streamFromServer was not initialised. Either:
+            (a) something went wrong during setup, or
+            (b) this.close() was called.
+            In both cases we expect this.exitFlag = true.
+            */
+            this.exitFlag = true;
+        } catch (ClassNotFoundException e) {
+            System.err.println("Could not deserialise the message.");
+        }
+    }
+
     private void listenToServer() {
         // keep reading from server and print out.
-        while (!this.listenerThread.isInterrupted()){
+        while (true) {
             try {
-                Message inMessage =
-                    (Message) this.streamFromServer.readObject();
-                System.out.println(inMessage.toString());
-            } catch (NullPointerException e) {
-                /* 
-                this.streamFromServer was not initialised. Either:
-                (a) something went wrong during setup, or
-                (b) this.close() was called.
-                In both cases we expect this.exitFlag = true.
-                */
-                if(this.exitFlag) break;
-            } catch (ClassNotFoundException e) {
-                System.err.println("Could not deserialise the message.");
+                this.receiveMessageAndPrint();
             } catch (IOException e) {
-                if(!this.exitFlag) {
-                    // If the program is not exited continue listening
-                    System.err.println("Failed while listening to server.");
-                } else {
-                    // Otherwise, stop listening
-                    break;
-                }
+                // Close the listener if the program has exited
+                if (this.exitFlag) break;
+
+                // Otherwise print an error message and keep listening
+                System.err.println("Failed while listening to server.");
             }
         }
     }
@@ -159,7 +162,6 @@ public class ChatClient {
     private void close() {
         System.out.println("Exiting...");
         try {
-            this.listenerThread.interrupt();
             this.scanner.close();
             this.socket.close();
         } catch (NullPointerException e) {
